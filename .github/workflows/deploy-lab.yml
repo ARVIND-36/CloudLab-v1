@@ -26,11 +26,18 @@ on:
         default: "Standard_B1s"
         type: string
 
+      azure_region:
+        description: "Azure Region (e.g. East US, East US 2, Central US)"
+        required: true
+        default: "East US"
+        type: string
+
 # ---------------------------------------------------------------------------
 # Environment variables shared across all jobs
 # ---------------------------------------------------------------------------
 env:
   TF_VAR_vm_size: ${{ github.event.inputs.vm_size }}
+  TF_VAR_azure_region: ${{ github.event.inputs.azure_region }}
   TF_VAR_ssh_public_key: ${{ secrets.TF_VAR_ssh_public_key }}
   ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
   ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
