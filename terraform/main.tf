@@ -33,7 +33,7 @@ provider "azurerm" {
 # Resource Group — Logical container for all lab resources
 # ---------------------------------------------------------------------------
 resource "azurerm_resource_group" "cloudlab_rg" {
-  name     = "rg-cloudlab-${var.azure_region}"
+  name     = "rg-cloudlab-${lower(replace(var.azure_region, " ", "-"))}"
   location = var.azure_region
 
   tags = {
