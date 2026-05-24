@@ -43,3 +43,12 @@ variable "ssh_public_key" {
   type        = string
   sensitive   = true
 }
+
+# ---------------------------------------------------------------------------
+# Lab Name — Dynamic prefix for resources (e.g., java or docker)
+# ---------------------------------------------------------------------------
+variable "lab_name" {
+  description = "The prefix name for the lab environment (e.g. 'java', 'docker') to isolate different environments."
+  type        = string
+  default     = "cloudlab"
+}

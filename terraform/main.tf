@@ -33,7 +33,7 @@ provider "azurerm" {
 # Resource Group — Logical container for all lab resources
 # ---------------------------------------------------------------------------
 resource "azurerm_resource_group" "cloudlab_rg" {
-  name     = "rg-cloudlab-${lower(replace(var.azure_region, " ", "-"))}"
+  name     = "rg-${var.lab_name}-${lower(replace(var.azure_region, " ", "-"))}"
   location = var.azure_region
 
   tags = {
@@ -47,7 +47,7 @@ resource "azurerm_resource_group" "cloudlab_rg" {
 # Virtual Network — Isolated network for the lab VM
 # ---------------------------------------------------------------------------
 resource "azurerm_virtual_network" "cloudlab_vnet" {
-  name                = "vnet-cloudlab"
+  name                = "vnet-${var.lab_name}"
   address_space       = ["10.0.0.0/16"]
   location            = azurerm_resource_group.cloudlab_rg.location
   resource_group_name = azurerm_resource_group.cloudlab_rg.name
@@ -61,7 +61,7 @@ resource "azurerm_virtual_network" "cloudlab_vnet" {
 # Subnet — A dedicated subnet within the VNet for lab VMs
 # ---------------------------------------------------------------------------
 resource "azurerm_subnet" "cloudlab_subnet" {
-  name                 = "subnet-cloudlab"
+  name                 = "subnet-${var.lab_name}"
   resource_group_name  = azurerm_resource_group.cloudlab_rg.name
   virtual_network_name = azurerm_virtual_network.cloudlab_vnet.name
   address_prefixes     = ["10.0.1.0/24"]
@@ -71,7 +71,7 @@ resource "azurerm_subnet" "cloudlab_subnet" {
 # Network Security Group — Firewall rules for the lab VM
 # ---------------------------------------------------------------------------
 resource "azurerm_network_security_group" "cloudlab_nsg" {
-  name                = "nsg-cloudlab"
+  name                = "nsg-${var.lab_name}"
   location            = azurerm_resource_group.cloudlab_rg.location
   resource_group_name = azurerm_resource_group.cloudlab_rg.name
 
@@ -97,7 +97,7 @@ resource "azurerm_network_security_group" "cloudlab_nsg" {
 # Public IP Address — External-facing IP for SSH access
 # ---------------------------------------------------------------------------
 resource "azurerm_public_ip" "cloudlab_pip" {
-  name                = "pip-cloudlab-vm"
+  name                = "pip-${var.lab_name}-vm"
   location            = azurerm_resource_group.cloudlab_rg.location
   resource_group_name = azurerm_resource_group.cloudlab_rg.name
   allocation_method   = "Static"
@@ -112,7 +112,7 @@ resource "azurerm_public_ip" "cloudlab_pip" {
 # Network Interface — Connects the VM to the VNet and Public IP
 # ---------------------------------------------------------------------------
 resource "azurerm_network_interface" "cloudlab_nic" {
-  name                = "nic-cloudlab-vm"
+  name                = "nic-${var.lab_name}-vm"
   location            = azurerm_resource_group.cloudlab_rg.location
   resource_group_name = azurerm_resource_group.cloudlab_rg.name
 
@@ -140,7 +140,7 @@ resource "azurerm_network_interface_security_group_association" "cloudlab_nic_ns
 # Linux Virtual Machine — The actual lab environment
 # ---------------------------------------------------------------------------
 resource "azurerm_linux_virtual_machine" "cloudlab_vm" {
-  name                = "vm-cloudlab-lab"
+  name                = "vm-${var.lab_name}-lab"
   location            = azurerm_resource_group.cloudlab_rg.location
   resource_group_name = azurerm_resource_group.cloudlab_rg.name
   size                = var.vm_size
@@ -163,7 +163,7 @@ resource "azurerm_linux_virtual_machine" "cloudlab_vm" {
   os_disk {
     caching              = "ReadWrite"
     storage_account_type = "Standard_LRS"
-    name                 = "osdisk-cloudlab-vm"
+    name                 = "osdisk-${var.lab_name}-vm"
   }
 
   # Ubuntu 22.04 LTS image from Canonical
