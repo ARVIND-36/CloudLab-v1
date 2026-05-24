@@ -1,0 +1,74 @@
+# =============================================================================
+# CloudLab: On-Demand DevOps Lab Platform
+# Ansible Playbook — Main Configuration Entry Point
+# =============================================================================
+# This playbook configures a freshly provisioned Azure VM based on the
+# selected lab type. It uses conditional role execution to apply only the
+# relevant software stack:
+#
+#   - "common"     → Always applied (git, curl, zip, etc.)
+#   - "java-lab"   → Applied when lab_target == "java"
+#   - "docker-lab" → Applied when lab_target == "docker"
+#
+# Usage:
+#   ansible-playbook playbook.yml -i inventory.ini \
+#     --extra-vars "lab_target=java"
+# =============================================================================
+
+---
+- name: "☁️ CloudLab — Configure Lab Environment"
+  hosts: lab_vm
+  become: true   # Run tasks with sudo privileges
+
+  # -------------------------------------------------------------------------
+  # Pre-flight: Display the selected lab configuration
+  # -------------------------------------------------------------------------
+  pre_tasks:
+    - name: "📋 Display Lab Configuration"
+      ansible.builtin.debug:
+        msg: |
+          ============================================
+            CloudLab Configuration Summary
+          ============================================
+            Lab Target : {{ lab_target }}
+            Host       : {{ inventory_hostname }}
+            OS Family  : {{ ansible_os_family | default('Unknown') }}
+          ============================================
+
+    - name: "✅ Validate lab_target variable"
+      ansible.builtin.assert:
+        that:
+          - lab_target is defined
+          - lab_target in ['java', 'docker']
+        fail_msg: "Invalid lab_target '{{ lab_target }}'. Must be 'java' or 'docker'."
+        success_msg: "Lab target '{{ lab_target }}' is valid."
+
+  # -------------------------------------------------------------------------
+  # Role Execution: Apply roles conditionally based on lab_target
+  # -------------------------------------------------------------------------
+  roles:
+    # Always install common utilities on every lab VM
+    - role: common
+
+    # Conditionally apply the Java development environment
+    - role: java-lab
+      when: lab_target == "java"
+
+    # Conditionally apply the Docker container environment
+    - role: docker-lab
+      when: lab_target == "docker"
+
+  # -------------------------------------------------------------------------
+  # Post-flight: Verify and report the final state
+  # -------------------------------------------------------------------------
+  post_tasks:
+    - name: "🎉 Lab Setup Complete"
+      ansible.builtin.debug:
+        msg: |
+          ============================================
+            ✅ CloudLab Setup Complete!
+          ============================================
+            Lab Type   : {{ lab_target }}
+            Status     : Ready for use
+            SSH Access : ssh azureuser@{{ inventory_hostname }}
+          ============================================

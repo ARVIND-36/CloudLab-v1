@@ -1,0 +1,67 @@
+# =============================================================================
+# CloudLab — Common Role
+# =============================================================================
+# This role installs essential utilities that every lab environment requires,
+# regardless of the selected lab type. It ensures the VM has a solid
+# foundation of developer tools.
+# =============================================================================
+
+---
+# ---------------------------------------------------------------------------
+# Step 1: Update the APT package cache to ensure latest package metadata
+# ---------------------------------------------------------------------------
+- name: "📦 Update APT package cache"
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600   # Skip update if cache is less than 1 hour old
+
+# ---------------------------------------------------------------------------
+# Step 2: Upgrade all existing packages to their latest versions
+# ---------------------------------------------------------------------------
+- name: "⬆️ Upgrade all system packages"
+  ansible.builtin.apt:
+    upgrade: safe
+  register: upgrade_result
+
+# ---------------------------------------------------------------------------
+# Step 3: Install common developer utilities
+# ---------------------------------------------------------------------------
+- name: "🔧 Install common developer tools"
+  ansible.builtin.apt:
+    name:
+      - git            # Version control
+      - curl           # HTTP client for downloading resources
+      - wget           # Alternative download utility
+      - zip            # Archive creation
+      - unzip          # Archive extraction
+      - vim            # Text editor
+      - htop           # Interactive process viewer
+      - tree           # Directory structure visualization
+      - software-properties-common   # Manage PPAs and repositories
+    state: present
+
+# ---------------------------------------------------------------------------
+# Step 4: Set the system timezone to UTC for consistent log timestamps
+# ---------------------------------------------------------------------------
+- name: "🕐 Set timezone to UTC"
+  ansible.builtin.timezone:
+    name: UTC
+
+# ---------------------------------------------------------------------------
+# Step 5: Display confirmation of installed tools
+# ---------------------------------------------------------------------------
+- name: "✅ Verify common tools installation"
+  ansible.builtin.command: "{{ item }} --version"
+  loop:
+    - git
+    - curl
+    - zip
+  register: tool_versions
+  changed_when: false
+
+- name: "📋 Display installed tool versions"
+  ansible.builtin.debug:
+    msg: "{{ item.stdout_lines[0] | default(item.stderr_lines[0] | default('Version info unavailable')) }}"
+  loop: "{{ tool_versions.results }}"
+  loop_control:
+    label: "{{ item.item }}"

@@ -1,0 +1,84 @@
+# =============================================================================
+# CloudLab — Java Lab Role
+# =============================================================================
+# This role provisions a Java development environment by installing:
+#   - OpenJDK 17 (LTS) — The Java Development Kit
+#   - Apache Maven      — Build automation and dependency management
+#
+# After installation, it verifies both tools are working correctly and
+# sets the JAVA_HOME environment variable system-wide.
+# =============================================================================
+
+---
+# ---------------------------------------------------------------------------
+# Step 1: Install OpenJDK 17 (Long-Term Support release)
+# ---------------------------------------------------------------------------
+- name: "☕ Install OpenJDK 17"
+  ansible.builtin.apt:
+    name: openjdk-17-jdk
+    state: present
+    update_cache: true
+
+# ---------------------------------------------------------------------------
+# Step 2: Set JAVA_HOME environment variable system-wide
+# ---------------------------------------------------------------------------
+- name: "🔧 Configure JAVA_HOME environment variable"
+  ansible.builtin.lineinfile:
+    path: /etc/environment
+    regexp: '^JAVA_HOME='
+    line: 'JAVA_HOME="/usr/lib/jvm/java-17-openjdk-amd64"'
+    create: true
+    mode: '0644'
+
+# ---------------------------------------------------------------------------
+# Step 3: Install Apache Maven for project build management
+# ---------------------------------------------------------------------------
+- name: "📦 Install Apache Maven"
+  ansible.builtin.apt:
+    name: maven
+    state: present
+
+# ---------------------------------------------------------------------------
+# Step 4: Verify Java installation
+# ---------------------------------------------------------------------------
+- name: "✅ Verify Java version"
+  ansible.builtin.command: java -version
+  register: java_version
+  changed_when: false
+
+- name: "📋 Display Java version"
+  ansible.builtin.debug:
+    msg: "{{ java_version.stderr_lines }}"
+
+# ---------------------------------------------------------------------------
+# Step 5: Verify Maven installation
+# ---------------------------------------------------------------------------
+- name: "✅ Verify Maven version"
+  ansible.builtin.command: mvn --version
+  register: maven_version
+  changed_when: false
+
+- name: "📋 Display Maven version"
+  ansible.builtin.debug:
+    msg: "{{ maven_version.stdout_lines }}"
+
+# ---------------------------------------------------------------------------
+# Step 6: Create a sample workspace directory for lab exercises
+# ---------------------------------------------------------------------------
+- name: "📁 Create Java lab workspace"
+  ansible.builtin.file:
+    path: /home/azureuser/java-lab-workspace
+    state: directory
+    owner: azureuser
+    group: azureuser
+    mode: '0755'
+
+- name: "🎉 Java Lab setup complete"
+  ansible.builtin.debug:
+    msg: |
+      ============================================
+        ☕ Java Lab Environment Ready!
+        - OpenJDK 17 installed
+        - Apache Maven installed
+        - Workspace: /home/azureuser/java-lab-workspace
+      ============================================

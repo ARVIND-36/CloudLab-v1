@@ -1,0 +1,188 @@
+# =============================================================================
+# CloudLab: On-Demand DevOps Lab Platform
+# GitHub Actions Workflow — Control Panel (CI/CD Engine)
+# =============================================================================
+# This workflow provides a UI-driven trigger (workflow_dispatch) that allows
+# users to select a lab type and VM size, then provisions infrastructure with
+# Terraform and configures the VM with Ansible — all in a single pipeline.
+# =============================================================================
+
+name: "☁️ Deploy CloudLab Environment"
+
+on:
+  workflow_dispatch:
+    inputs:
+      lab_type:
+        description: "Lab Environment Type"
+        required: true
+        type: choice
+        options:
+          - java
+          - docker
+
+      vm_size:
+        description: "Azure VM Size"
+        required: true
+        default: "Standard_B1s"
+        type: string
+
+# ---------------------------------------------------------------------------
+# Environment variables shared across all jobs
+# ---------------------------------------------------------------------------
+env:
+  TF_VAR_vm_size: ${{ github.event.inputs.vm_size }}
+  ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+  ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+  ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+
+jobs:
+  # ===========================================================================
+  # Job 1 — Provision Infrastructure with Terraform
+  # ===========================================================================
+  provision:
+    name: "🏗️ Provision Azure Infrastructure"
+    runs-on: ubuntu-latest
+
+    outputs:
+      vm_ip: ${{ steps.tf_output.outputs.vm_public_ip }}
+
+    steps:
+      # -----------------------------------------------------------------------
+      # Step 1: Checkout the repository
+      # -----------------------------------------------------------------------
+      - name: "📥 Checkout Repository"
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # Step 2: Install Terraform CLI
+      # -----------------------------------------------------------------------
+      - name: "🔧 Setup Terraform"
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false   # Disable wrapper so raw output is captured
+
+      # -----------------------------------------------------------------------
+      # Step 3: Initialize Terraform (download providers, init backend)
+      # -----------------------------------------------------------------------
+      - name: "📦 Terraform Init"
+        working-directory: terraform
+        run: terraform init
+
+      # -----------------------------------------------------------------------
+      # Step 4: Validate the Terraform configuration
+      # -----------------------------------------------------------------------
+      - name: "✅ Terraform Validate"
+        working-directory: terraform
+        run: terraform validate
+
+      # -----------------------------------------------------------------------
+      # Step 5: Plan the infrastructure changes
+      # -----------------------------------------------------------------------
+      - name: "📋 Terraform Plan"
+        working-directory: terraform
+        run: terraform plan -out=tfplan
+
+      # -----------------------------------------------------------------------
+      # Step 6: Apply the plan to create resources in Azure
+      # -----------------------------------------------------------------------
+      - name: "🚀 Terraform Apply"
+        working-directory: terraform
+        run: terraform apply -auto-approve tfplan
+
+      # -----------------------------------------------------------------------
+      # Step 7: Capture the public IP of the provisioned VM
+      # -----------------------------------------------------------------------
+      - name: "🌐 Capture VM Public IP"
+        id: tf_output
+        working-directory: terraform
+        run: |
+          VM_IP=$(terraform output -raw vm_public_ip)
+          echo "vm_public_ip=$VM_IP" >> "$GITHUB_OUTPUT"
+          echo "✅ VM provisioned at IP: $VM_IP"
+
+  # ===========================================================================
+  # Job 2 — Configure the VM with Ansible
+  # ===========================================================================
+  configure:
+    name: "⚙️ Configure Lab Environment (${{ github.event.inputs.lab_type }})"
+    runs-on: ubuntu-latest
+    needs: provision
+
+    steps:
+      # -----------------------------------------------------------------------
+      # Step 1: Checkout the repository
+      # -----------------------------------------------------------------------
+      - name: "📥 Checkout Repository"
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # Step 2: Install Ansible on the runner
+      # -----------------------------------------------------------------------
+      - name: "🔧 Install Ansible"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ansible
+
+      # -----------------------------------------------------------------------
+      # Step 3: Configure SSH key for VM access
+      # -----------------------------------------------------------------------
+      - name: "🔑 Setup SSH Key"
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          # Disable strict host key checking for first-time connection
+          echo "StrictHostKeyChecking no" >> ~/.ssh/config
+
+      # -----------------------------------------------------------------------
+      # Step 4: Dynamically create Ansible inventory from Terraform output
+      # -----------------------------------------------------------------------
+      - name: "📝 Generate Ansible Inventory"
+        run: |
+          cat <<EOF > ansible/inventory.ini
+          [lab_vm]
+          ${{ needs.provision.outputs.vm_ip }} ansible_user=azureuser ansible_ssh_private_key_file=~/.ssh/id_rsa
+          EOF
+          echo "📋 Generated inventory:"
+          cat ansible/inventory.ini
+
+      # -----------------------------------------------------------------------
+      # Step 5: Wait for the VM to become reachable via SSH
+      # -----------------------------------------------------------------------
+      - name: "⏳ Wait for VM SSH Availability"
+        run: |
+          echo "Waiting for SSH on ${{ needs.provision.outputs.vm_ip }}..."
+          for i in $(seq 1 30); do
+            if ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no \
+               -i ~/.ssh/id_rsa azureuser@${{ needs.provision.outputs.vm_ip }} "echo ready" 2>/dev/null; then
+              echo "✅ VM is reachable!"
+              break
+            fi
+            echo "  Attempt $i/30 — retrying in 10s..."
+            sleep 10
+          done
+
+      # -----------------------------------------------------------------------
+      # Step 6: Run the Ansible playbook with the selected lab type
+      # -----------------------------------------------------------------------
+      - name: "🎯 Run Ansible Playbook"
+        working-directory: ansible
+        run: |
+          ansible-playbook playbook.yml \
+            -i inventory.ini \
+            --extra-vars "lab_target=${{ github.event.inputs.lab_type }}"
+
+      # -----------------------------------------------------------------------
+      # Step 7: Print a summary of the deployed environment
+      # -----------------------------------------------------------------------
+      - name: "📊 Deployment Summary"
+        run: |
+          echo "============================================"
+          echo "  ☁️  CloudLab Deployment Complete!"
+          echo "============================================"
+          echo "  Lab Type : ${{ github.event.inputs.lab_type }}"
+          echo "  VM Size  : ${{ github.event.inputs.vm_size }}"
+          echo "  Public IP: ${{ needs.provision.outputs.vm_ip }}"
+          echo "  SSH Cmd  : ssh azureuser@${{ needs.provision.outputs.vm_ip }}"
+          echo "============================================"
