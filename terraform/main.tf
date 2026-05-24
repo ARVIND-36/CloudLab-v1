@@ -143,7 +143,7 @@ resource "azurerm_linux_virtual_machine" "cloudlab_vm" {
   name                = "vm-${var.lab_name}-lab"
   location            = azurerm_resource_group.cloudlab_rg.location
   resource_group_name = azurerm_resource_group.cloudlab_rg.name
-  size                = var.vm_size
+  size                = trimspace(var.vm_size)
 
   # Authentication — SSH key-based (no password)
   admin_username                  = "azureuser"
